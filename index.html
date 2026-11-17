@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>臨床藥事照護案例實作與 SOAP 交卷系統 | Case 1: Mr. Jobs (學員端)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- html2pdf.js for direct PDF file download -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Inter"', '"Noto Sans TC"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+    }
+    .clinical-shadow {
+      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+    }
+    textarea {
+      resize: vertical;
+    }
+    /* Print & PDF Export Specific Styles */
+    @media print {
+      body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      #print-submission-sheet {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+      }
+      .page-break-avoid {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+  <!-- ================================================================= -->
+  <!-- TOP NAVIGATION BAR (NO-PRINT)                                     -->
+  <!-- ================================================================= -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 no-print">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-3">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <!-- Brand & Title -->
+        <div class="flex items-start sm:items-center gap-3">
+          <div class=" bg-blue-600 p-2.5 rounded-xl shadow-inner flex-shrink-0">
+            <i data-lucide="clipboard-pen-line" class="w-6 h-6 text-white"></i>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">
+                臨床藥事照護案例實作與 SOAP 交卷系統
+              </h1>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                學員作答專用端 (無解答提示)
+              </span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">
+              Clinical Pharmacy Case Study Worksheet — 請詳閱病歷後完成 SOAP 藥事照護紀錄撰寫，並產製 PDF 交卷
+            </p>
+          </div>
+        </div>
+
+        <!-- Action Buttons & Version Badge -->
+        <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2.5">
+          <!-- Auto-save status -->
+          <div id="autosave-indicator" class="flex items-center gap-1.5 text-xs text-slate-300 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="autosave-text">草稿自動儲存中</span>
+          </div>
+
+          <!-- Preview Button -->
+          <button onclick="openSubmissionPreview()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-600 transition">
+            <i data-lucide="eye" class="w-4 h-4 text-blue-400"></i>
+            <span>預覽交卷排版</span>
+          </button>
+
+          <!-- Generate PDF Button -->
+          <button onclick="handleGeneratePDF()" id="btn-export-pdf" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md transition">
+            <i data-lucide="file-down" class="w-4 h-4"></i>
+            <span>產製 PDF 交卷</span>
+          </button>
+
+          <!-- Print / Save as PDF Fallback -->
+          <button onclick="handleBrowserPrintPDF()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition" title="使用瀏覽器原生列印另存高解析度 PDF">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>列印 / 另存 PDF</span>
+          </button>
+
+          <!-- Version Info -->
+          <div class="hidden 2xl:flex items-center gap-2 text-xs text-slate-400 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700">
+            <span>Version: <strong class="text-slate-200">v1.3.0</strong></span>
+            <span>|</span>
+            <span>製作日期: <strong class="text-slate-200">2026-11-17</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================================= -->
+  <!-- MAIN WORKSPACE (NO-PRINT)                                         -->
+  <!-- ================================================================= -->
+  <main class="flex-grow max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-5 space-y-5 no-print">
+
+    <!-- Student Basic Info Bar -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 clinical-shadow">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-3.5 border-b border-slate-100 gap-2">
+        <div class="flex items-center gap-2">
+          <i data-lucide="user-check" class="w-5 h-5 text-blue-600"></i>
+          <h2 class="text-sm sm:text-base font-bold text-slate-900">學員基本資料 (交卷必填欄位)</h2>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-slate-500">填寫進度將自動保存在您的瀏覽器中</span>
+          <button onclick="openResetModal()" class="text-xs font-medium text-rose-600 hover:text-rose-700 flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span>清空重填</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">學員姓名 <span class="text-rose-600">*</span></label>
+          <input type="text" id="stu-name" oninput="saveDraft()" placeholder="請輸入真實姓名" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">學號 / 員工職編 <span class="text-rose-600">*</span></label>
+          <input type="text" id="stu-id" oninput="saveDraft()" placeholder="例如：PGY11508" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">訓練職級 / 組別</label>
+          <select id="stu-level" onchange="saveDraft()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+            <option value="PGY 藥師">PGY 藥師</option>
+            <option value="藥學實習生 (Intern)">藥學實習生 (Intern)</option>
+            <option value="其他臨床藥師訓練">其他臨床藥師訓練</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">指導藥師 / 臨床教師</label>
+          <input type="text" id="stu-preceptor" oninput="saveDraft()" value="史一良 藥師" placeholder="請輸入指導藥師姓名" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">學員計算之 CrCl (mL/min)</label>
+          <input type="text" id="stu-crcl" oninput="saveDraft()" placeholder="例如：12.4 mL/min" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-blue-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">繳交日期</label>
+          <input type="date" id="stu-date" onchange="saveDraft()" value="2026-11-17" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Validation Warning Alert (Hidden by default) -->
+    <div id="validation-banner" class="hidden bg-rose-50 border border-rose-300 text-rose-800 px-4 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600 flex-shrink-0"></i>
+        <span id="validation-msg">請先填寫學員姓名與 SOAP 內容後再產製考卷。</span>
+      </div>
+      <button onclick="document.getElementById('validation-banner').classList.add('hidden')" class="text-rose-600 hover:text-rose-900 font-bold">✕</button>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- SPLIT VIEW: LEFT (CLINICAL CHART 50%) | RIGHT (SOAP NOTE 50%)   -->
+    <!-- =============================================================== -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- LEFT COLUMN: PATIENT CLINICAL CASE (6 Cols = 50% on Desktop, Sticky) -->
+      <div class="lg:col-span-6 space-y-5 lg:sticky lg:top-20">
+        
+        <!-- Patient Case Card (Replica of Uploaded Case Image without hints) -->
+        <div class="bg-white rounded-2xl border border-slate-200 border-t-4 border-t-blue-700 p-5 sm:p-6 clinical-shadow">
+          <div class="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-200">
+            <div class="flex items-center gap-2.5">
+              <div class="bg-blue-700 text-white p-1.5 rounded-lg">
+                <i data-lucide="file-text" class="w-5 h-5"></i>
+              </div>
+              <h2 class="text-lg sm:text-xl font-bold text-slate-900">Case 1: Mr. Jobs</h2>
+            </div>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+              eGFR &lt; 25 mL/min/1.73m²
+            </span>
+          </div>
+
+          <!-- Top Blue Summary Box -->
+          <div class="bg-[#f0f6ff] border border-blue-100 rounded-xl p-4 mb-4 text-xs sm:text-sm space-y-2 leading-relaxed">
+            <div>
+              <p><strong class="text-[#1e3a8a]">Patient:</strong> Mr. Jobs, 72-year-old male</p>
+              <p><strong class="text-[#1e3a8a]">Height/Weight:</strong> 170 cm, 72 kg (BMI ≈ 24.9)</p>
+              <p><strong class="text-[#1e3a8a]">Presentation:</strong> Presented to ER with worsening shortness of breath and a painful, non-healing diabetic foot ulcer.</p>
+            </div>
+            <div class="pt-2 border-t border-blue-200/60">
+              <p><strong class="text-[#1e3a8a]">Chief Complaint (CC):</strong> “Doctor, I cannot breathe well, my legs are swelling, and my right foot wound hurts badly. Also, I have been taking my Dapagliflozin for nearly 5 years—should I keep taking it?”</p>
+            </div>
+          </div>
+
+          <!-- HPI -->
+          <div class="mb-4 text-xs sm:text-sm">
+            <h3 class="font-bold text-[#1e3a8a] mb-1">History of Present Illness (HPI):</h3>
+            <p class="text-slate-700 leading-relaxed">
+              Patient reports progressive shortness of breath for 2 weeks, worse on exertion, associated with orthopnea, paroxysmal nocturnal dyspnea, and bilateral leg swelling. He also developed a right plantar diabetic foot ulcer 10 days ago. Five days prior to ER visit, an outpatient clinic cultured MRSA from the wound and prescribed oral Linezolid and Tramadol/Acetaminophen. Over the past 24 hours, he noted mild restlessness, hand tremors, and decreased urine output. He has been taking Dapagliflozin 10 mg QD for nearly 5 years for T2DM and CKD/HF. Denies chest pain or cough.
+            </p>
+          </div>
+
+          <!-- PMH & PSH/FH/SH -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 text-xs sm:text-sm">
+            <div>
+              <h3 class="font-bold text-[#1e3a8a] mb-1">Past Medical History (PMH):</h3>
+              <ul class="list-disc list-inside space-y-1 text-slate-700">
+                <li>Hypertension × 20 yrs</li>
+                <li>Type 2 Diabetes Mellitus × 15 yrs (with diabetic foot ulcer)</li>
+                <li>Heart Failure with reduced Ejection Fraction (HFrEF)</li>
+                <li>Chronic Kidney Disease Stage 5 (eGFR 12 mL/min/1.73m², not on dialysis yet)</li>
+                <li>Atrial Fibrillation</li>
+                <li>Dyslipidemia</li>
+                <li>Peptic ulcer disease</li>
+              </ul>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <h3 class="font-bold text-[#1e3a8a] mb-1">Past Surgical History (PSH):</h3>
+                <p class="text-slate-700">CABG (Coronary artery bypass surgery) 8 years ago</p>
+              </div>
+              <div>
+                <h3 class="font-bold text-[#1e3a8a] mb-1">Family/Social History (FH/SH):</h3>
+                <ul class="list-disc list-inside space-y-0.5 text-slate-700">
+                  <li>Father died of MI at 65</li>
+                  <li>Mother had diabetes</li>
+                  <li>Ex-smoker 30 pack-years (quit 10 yrs ago)</li>
+                  <li>Denies alcohol use</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Physical Examination -->
+          <div class="border border-slate-200 rounded-xl p-3.5 mb-4 text-xs sm:text-sm bg-slate-50/50">
+            <h3 class="font-bold text-[#1e3a8a] pb-1.5 mb-2 border-b border-slate-200">Physical Examination (PE):</h3>
+            <div class="space-y-1.5 text-slate-700">
+              <p><strong class="text-slate-900">Vitals:</strong> BP 160/90 mmHg, HR 98 irregular, RR 24, Temp 37.6°C, SpO₂ 90% RA</p>
+              <p><strong class="text-slate-900">Cardiovascular:</strong> Irregularly irregular rhythm, S3 gallop, mild systolic murmur</p>
+              <p><strong class="text-slate-900">Respiratory:</strong> Bibasilar crackles</p>
+              <p><strong class="text-slate-900">Extremities:</strong> Pitting edema +2 bilaterally; 2×2 cm erythematous right plantar ulcer with purulent discharge</p>
+              <p><strong class="text-slate-900">HEENT:</strong> Mild jugular venous distension at 30° elevation, no thyromegaly or lymphadenopathy</p>
+              <p><strong class="text-slate-900">Neurological:</strong> Mild bilateral hand tremor and hyperreflexia</p>
+            </div>
+          </div>
+
+          <!-- Lab Data & Imaging -->
+          <div class="border border-slate-200 rounded-xl p-3.5 mb-4 text-xs sm:text-sm bg-slate-50/50">
+            <h3 class="font-bold text-[#1e3a8a] pb-1.5 mb-2 border-b border-slate-200">Laboratory Data / Imaging:</h3>
+            <div class="space-y-1.5 text-slate-700">
+              <p><strong class="text-slate-900">CBC:</strong> WBC 11,200 /μL | Hb 10.5 g/dL | Plt 135,000 /μL</p>
+              <p><strong class="text-slate-900">BMP:</strong> Na 136 mEq/L | K 5.8 mEq/L | BUN 76 mg/dL | Cr 5.5 mg/dL (eGFR 12 mL/min/1.73m²) | Glucose 158 mg/dL</p>
+              <p><strong class="text-slate-900">Other Labs:</strong> HbA1c 7.8% | INR 1.2 | Lactate 2.4 mmol/L</p>
+              <p><strong class="text-slate-900">CXR:</strong> Cardiomegaly, pulmonary congestion</p>
+              <p><strong class="text-slate-900">EKG:</strong> Atrial fibrillation</p>
+            </div>
+          </div>
+
+          <!-- Current Medications -->
+          <div class="bg-slate-100/80 border border-slate-200 rounded-xl p-3.5 text-xs sm:text-sm">
+            <h3 class="font-bold text-[#1e3a8a] mb-2 flex items-center gap-1.5">
+              <i data-lucide="pill" class="w-4 h-4 text-blue-600"></i>
+              <span>Current Medications (10 項既有處方):</span>
+            </h3>
+            <ol class="list-decimal list-inside space-y-1 text-slate-800 font-medium">
+              <li>Tramadol 37.5 mg + Acetaminophen 325 mg/tab 1# PO Q12H</li>
+              <li>Captopril 25 mg PO QD</li>
+              <li>Furosemide 40 mg PO QD</li>
+              <li>Atorvastatin 20 mg PO QHS</li>
+              <li>Dabigatran 150 mg PO BID</li>
+              <li>Metformin 500 mg PO BID</li>
+              <li>Amlodipine 5 mg PO QD</li>
+              <li>Famotidine 20 mg PO BID</li>
+              <li>Linezolid 600 mg PO Q12H</li>
+              <li>Dapagliflozin 10 mg PO QD <span class="text-slate-500 font-normal">(已連續服用近 5 年)</span></li>
+            </ol>
+          </div>
+
+          <!-- Auxiliary Blank Renal Calculator for Students -->
+          <details class="mt-4 bg-white border border-slate-200 rounded-xl p-3.5 text-xs">
+            <summary class="font-bold text-slate-700 cursor-pointer flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <i data-lucide="calculator" class="w-4 h-4 text-blue-600"></i>
+                輔助工具：Cockcroft-Gault CrCl &amp; IBW 驗算器 (空白無預設值)
+              </span>
+              <span class="text-blue-600">展開計算</span>
+            </summary>
+            <div class="mt-3 pt-3 border-t border-slate-100 space-y-3">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <label class="block text-[11px] text-slate-500">年齡 (歲)</label>
+                  <input type="number" id="tool-age" placeholder="歲" oninput="runStudentCalc()" class="w-full px-2 py-1 border rounded text-xs" />
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-500">體重 (kg)</label>
+                  <input type="number" id="tool-wt" placeholder="kg" oninput="runStudentCalc()" class="w-full px-2 py-1 border rounded text-xs" />
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-500">身高 (cm)</label>
+                  <input type="number" id="tool-ht" placeholder="cm" oninput="runStudentCalc()" class="w-full px-2 py-1 border rounded text-xs" />
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-500">SCr (mg/dL)</label>
+                  <input type="number" step="0.1" id="tool-scr" placeholder="mg/dL" oninput="runStudentCalc()" class="w-full px-2 py-1 border rounded text-xs" />
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <div>男性理想體重 (IBW): <strong id="tool-res-ibw" class="text-slate-800">--</strong> kg</div>
+                <div>CG CrCl (實際體重): <strong id="tool-res-tbw" class="text-blue-700">--</strong> mL/min</div>
+                <div>CG CrCl (理想體重): <strong id="tool-res-cg-ibw" class="text-indigo-700">--</strong> mL/min</div>
+              </div>
+            </div>
+          </details>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: ONLY THE SOAP NOTE WORKSHEET (6 Cols = 50% on Desktop) -->
+      <div class="lg:col-span-6 space-y-6">
+
+        <!-- Standard SOAP Note Writing Section -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 clinical-shadow space-y-5">
+          <div class="pb-3.5 border-b border-slate-200">
+            <h2 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="file-pen-line" class="w-5 h-5 text-blue-600"></i>
+              <span>臨床藥事照護紀錄 (SOAP Note) 撰寫區</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-1">
+              請詳閱左側臨床病歷與 10 項既有處方，自行整理並依序完成 S、O、A、P 四大段落後產製 PDF 交卷。
+            </p>
+          </div>
+
+          <!-- S: Subjective -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="soap-s" class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-blue-700 text-white text-xs flex items-center justify-center font-bold">S</span>
+                <span>Subjective (S) — 主觀資料 <span class="text-rose-600">*</span></span>
+              </label>
+              <span class="text-xs text-slate-400" id="count-s">0 字</span>
+            </div>
+            <p class="text-xs text-slate-500">
+              撰寫提示：請記錄病患主訴 (包含呼吸困難、下肢水腫、右足傷口劇痛、詢問已服用近 5 年之 Dapagliflozin 是否續用)、現在病史 (5天前外院開立之藥物與近 24 小時手抖/躁動/尿量減少表現)。
+            </p>
+            <textarea id="soap-s" rows="5" oninput="saveDraft()" placeholder="請在此輸入 Subjective 主觀資料..." class="w-full p-3.5 rounded-xl border border-slate-300 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
+          </div>
+
+          <!-- O: Objective -->
+          <div class="space-y-1.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label for="soap-o" class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-blue-700 text-white text-xs flex items-center justify-center font-bold">O</span>
+                <span>Objective (O) — 客觀資料與腎功能評估 <span class="text-rose-600">*</span></span>
+              </label>
+              <span class="text-xs text-slate-400" id="count-o">0 字</span>
+            </div>
+            <p class="text-xs text-slate-500">
+              撰寫提示：請整理過去病史、生命徵象、理學檢查異常發現 (如心音、肺部聽診、水腫、足部潰瘍培養、神經學反射與顫抖)、重要檢驗數值 (腎功能、電解質、CBC、Lactate、CXR/EKG) 與目前 10 項用藥。
+            </p>
+            <textarea id="soap-o" rows="7" oninput="saveDraft()" placeholder="請在此自行整理並輸入 Objective 客觀資料與腎功能評估..." class="w-full p-3.5 rounded-xl border border-slate-300 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
+          </div>
+
+          <!-- A: Assessment -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="soap-a" class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-blue-700 text-white text-xs flex items-center justify-center font-bold">A</span>
+                <span>Assessment (A) — 藥物治療問題評估與實證依據 (DRPs) <span class="text-rose-600">*</span></span>
+              </label>
+              <span class="text-xs text-slate-400" id="count-a">0 字</span>
+            </div>
+            <p class="text-xs text-slate-500">
+              撰寫提示：請針對病患臨床問題與 10 項處方逐一進行實證藥學評估（建議涵蓋：① 重度腎功能不全 eGFR &lt; 25 之禁忌症與劑量過高藥物、② 嚴重藥物交互作用與神經學症狀關聯、③ 急性心衰竭與高血鉀之用藥評估、④ MRSA 足部感染抗生素安全性、⑤ 已使用近 5 年之 Dapagliflozin 於慢性期與急性期之評估）。
+            </p>
+            <textarea id="soap-a" rows="10" oninput="saveDraft()" placeholder="請在此分點條列您的 Assessment 臨床評估與實證依據..." class="w-full p-3.5 rounded-xl border border-slate-300 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
+          </div>
+
+          <!-- P: Plan -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label for="soap-p" class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-md bg-blue-700 text-white text-xs flex items-center justify-center font-bold">P</span>
+                <span>Plan (P) — 具體建議處置、劑量調整、監測計畫與衛教 <span class="text-rose-600">*</span></span>
+              </label>
+              <span class="text-xs text-slate-400" id="count-p">0 字</span>
+            </div>
+            <p class="text-xs text-slate-500">
+              撰寫提示：請提出具體可執行的處方修改建議（停用哪些藥、替代藥物為何、明確劑量/途徑/頻次）、療效與副作用監測指標 (Monitoring parameters)，以及回覆病患對於 Dapagliflozin 用藥疑問之衛教說明。
+            </p>
+            <textarea id="soap-p" rows="9" oninput="saveDraft()" placeholder="請在此輸入您的 Plan 藥事照護計畫、替代處方劑量與監測衛教..." class="w-full p-3.5 rounded-xl border border-slate-300 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"></textarea>
+          </div>
+
+          <!-- Bottom Submit Bar -->
+          <div class="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="text-xs text-slate-500">
+              💡 交卷前建議先點擊「預覽交卷排版」確認內容完整無誤。
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+              <button onclick="openSubmissionPreview()" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition flex items-center gap-1.5">
+                <i data-lucide="eye" class="w-4 h-4 text-blue-600"></i>
+                <span>預覽交卷排版</span>
+              </button>
+              <button onclick="handleGeneratePDF()" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md transition flex items-center gap-1.5">
+                <i data-lucide="file-down" class="w-4 h-4"></i>
+                <span>下載 PDF 考卷交卷</span>
+              </button>
+              <button onclick="handleBrowserPrintPDF()" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition flex items-center gap-1.5">
+                <i data-lucide="printer" class="w-4 h-4"></i>
+                <span>列印 / 另存 PDF</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- MODAL: SUBMISSION PREVIEW & RESET CONFIRMATION (NO-PRINT)         -->
+  <!-- ================================================================= -->
+  <div id="preview-modal" class="fixed inset-0 z-50 hidden bg-slate-900/75 backdrop-blur-xs overflow-y-auto p-4 sm:p-6 no-print">
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-4">
+      <!-- Modal Header -->
+      <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="file-check" class="w-5 h-5 text-emerald-400"></i>
+          <h3 class="font-bold text-base">臨床藥事照護 SOAP 作業交卷預覽</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="handleGeneratePDF()" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>直接下載 PDF 檔</span>
+          </button>
+          <button onclick="handleBrowserPrintPDF()" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+            <span>呼叫列印存成 PDF</span>
+          </button>
+          <button onclick="closeSubmissionPreview()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+      <!-- Modal Body -->
+      <div id="modal-preview-body" class="p-6 sm:p-8 bg-slate-100 max-h-[80vh] overflow-y-auto">
+        <!-- Cloned from #print-submission-sheet -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Confirmation Modal -->
+  <div id="reset-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+      <div class="flex items-center gap-3 text-rose-600 mb-3">
+        <i data-lucide="alert-octagon" class="w-6 h-6"></i>
+        <h3 class="text-base font-bold text-slate-900">確定要清空所有作答內容嗎？</h3>
+      </div>
+      <p class="text-xs sm:text-sm text-slate-600 leading-relaxed mb-5">
+        此操作將會清除您目前已填寫的 S/O/A/P 所有文字草稿，且無法復原。
+      </p>
+      <div class="flex items-center justify-end gap-2.5">
+        <button onclick="closeResetModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200">取消</button>
+        <button onclick="confirmResetAll()" class="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700">確定清空重填</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- DEDICATED A4 PRINT / PDF SUBMISSION SHEET                         -->
+  <!-- ================================================================= -->
+  <div id="print-submission-sheet" class="hidden bg-white text-slate-900 p-6 sm:p-8 max-w-[210mm] mx-auto">
+    
+    <!-- Document Header -->
+    <div class="border-b-2 border-slate-900 pb-3 mb-4 flex items-start justify-between gap-4">
+      <div>
+        <div class="text-xs font-bold tracking-wider text-blue-800 uppercase">醫院臨床藥學教學訓練 — 臨床藥事照護 SOAP 作業繳交單</div>
+        <h1 class="text-xl font-extrabold text-slate-900 mt-0.5">臨床藥事照護案例討論 SOAP 作業繳交單</h1>
+        <p class="text-xs text-slate-600 mt-0.5">討論主題：Case 1: Mr. Jobs — 重度腎功能不全 (eGFR &lt; 25 mL/min/1.73m²) 合併多重共病之處方評估</p>
+      </div>
+      <div class="text-right text-[11px] text-slate-500 flex-shrink-0">
+        <div>Version: v1.3.0</div>
+        <div>製作日期：2026-11-17</div>
+      </div>
+    </div>
+
+    <!-- Student Metadata Table -->
+    <table class="w-full border-collapse border border-slate-400 text-xs mb-5">
+      <tbody>
+        <tr>
+          <td class="border border-slate-400 bg-slate-100 font-bold px-2.5 py-1.5 w-[13%]">學員姓名</td>
+          <td class="border border-slate-400 px-2.5 py-1.5 w-[20%] font-semibold" id="pdf-stu-name">--</td>
+          <td class="border border-slate-400 bg-slate-100 font-bold px-2.5 py-1.5 w-[13%]">學號/職編</td>
+          <td class="border border-slate-400 px-2.5 py-1.5 w-[20%]" id="pdf-stu-id">--</td>
+          <td class="border border-slate-400 bg-slate-100 font-bold px-2.5 py-1.5 w-[14%]">訓練職級</td>
+          <td class="border border-slate-400 px-2.5 py-1.5 w-[20%]" id="pdf-stu-level">--</td>
+        </tr>
+        <tr>
+          <td class="border border-slate-400 bg-slate-100 font-bold px-2.5 py-1.5">指導藥師</td>
+          <td class="border border-slate-400 px-2.5 py-1.5" id="pdf-stu-preceptor">--</td>
+          <td class="border border-slate-400 bg-slate-100 font-bold px-2.5 py-1.5">學員計算 CrCl</td>
+          <td class="border border-slate-400 px-2.5 py-1.5 font-semibold text-blue-900" id="pdf-stu-crcl">--</td>
+          <td class="border border-slate-400 bg-slate-100 font-bold px-2.5 py-1.5">交卷日期</td>
+          <td class="border border-slate-400 px-2.5 py-1.5" id="pdf-stu-date">--</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Brief Case Reference Box -->
+    <div class="border border-slate-300 rounded-lg p-3 mb-5 bg-slate-50 text-[11px] leading-relaxed page-break-avoid">
+      <div class="font-bold text-slate-900 mb-1">【病患案例摘要 Case 1: Mr. Jobs (72歲男性, 170 cm, 72 kg)】</div>
+      <div>
+        <strong>主訴與病史：</strong>因漸進性呼吸困難 2 週、端坐呼吸、雙下肢水腫及右足底糖尿病足潰瘍劇痛至急診，並詢問已服用近 5 年之 Dapagliflozin 10 mg QD 是否可繼續服用。5 天前外院因傷口培養出 MRSA 開立口服 Linezolid 600 mg Q12H 與 Tramadol 37.5mg/Acetaminophen 325mg 1# Q12H；近 24 小時出現躁動、雙手顫抖與尿量減少。過去病史含 HTN、T2DM、HFrEF、CKD stage 5 (eGFR 12 mL/min/1.73m²)、AF、Dyslipidemia、PUD、CABG。<br>
+        <strong>重要檢查：</strong>BP 160/90, HR 98 (irregular), RR 24, Temp 37.6°C, SpO₂ 90% RA；雙下肢水腫 +2、右足底 2×2 cm 化膿潰瘍、雙上肢顫抖與反射亢進。WBC 11.2k, Hb 10.5, Plt 135k, Na 136, K 5.8, BUN 76, Cr 5.5, Glu 158, HbA1c 7.8%, INR 1.2, Lactate 2.4。<br>
+        <strong>目前 10 項處方：</strong>1. Tramadol 37.5mg/Acetaminophen 325mg 1# Q12H, 2. Captopril 25mg QD, 3. Furosemide 40mg QD, 4. Atorvastatin 20mg QHS, 5. Dabigatran 150mg BID, 6. Metformin 500mg BID, 7. Amlodipine 5mg QD, 8. Famotidine 20mg BID, 9. Linezolid 600mg Q12H, 10. Dapagliflozin 10mg QD (已使用近 5 年)。
+      </div>
+    </div>
+
+    <!-- SOAP Sections -->
+    <div class="space-y-4">
+      <h2 class="text-xs font-bold text-slate-900 bg-slate-200 px-3 py-1.5 border border-slate-400">
+        臨床藥師 SOAP 藥事照護紀錄 (Pharmacist's SOAP Note)
+      </h2>
+
+      <div class="border border-slate-400 rounded p-3 page-break-avoid">
+        <div class="font-bold text-xs text-blue-900 border-b border-slate-200 pb-1 mb-1.5">S — Subjective (主觀資料)</div>
+        <div id="pdf-soap-s" class="text-xs leading-relaxed whitespace-pre-wrap min-h-[56px]"></div>
+      </div>
+
+      <div class="border border-slate-400 rounded p-3 page-break-avoid">
+        <div class="font-bold text-xs text-blue-900 border-b border-slate-200 pb-1 mb-1.5">O — Objective (客觀資料)</div>
+        <div id="pdf-soap-o" class="text-xs leading-relaxed whitespace-pre-wrap min-h-[72px]"></div>
+      </div>
+
+      <div class="border border-slate-400 rounded p-3">
+        <div class="font-bold text-xs text-blue-900 border-b border-slate-200 pb-1 mb-1.5">A — Assessment (藥物治療問題評估 DRPs)</div>
+        <div id="pdf-soap-a" class="text-xs leading-relaxed whitespace-pre-wrap min-h-[140px]"></div>
+      </div>
+
+      <div class="border border-slate-400 rounded p-3">
+        <div class="font-bold text-xs text-blue-900 border-b border-slate-200 pb-1 mb-1.5">P — Plan (具體藥事照護建議、監測計畫與病患衛教)</div>
+        <div id="pdf-soap-p" class="text-xs leading-relaxed whitespace-pre-wrap min-h-[140px]"></div>
+      </div>
+    </div>
+
+    <!-- Preceptor Grading & Feedback Box -->
+    <div class="mt-6 border-2 border-slate-700 rounded-lg p-3.5 page-break-avoid bg-slate-50/40">
+      <div class="text-xs font-bold text-slate-900 mb-2">【指導藥師批閱與評分欄 (Preceptor Evaluation &amp; Feedback)】</div>
+      <table class="w-full border-collapse border border-slate-400 text-[11px] mb-2">
+        <thead>
+          <tr class="bg-slate-100">
+            <th class="border border-slate-400 py-1 px-2">評核項目</th>
+            <th class="border border-slate-400 py-1 px-2">Subjective 完整性 (15%)</th>
+            <th class="border border-slate-400 py-1 px-2">Objective 與腎功能計算 (15%)</th>
+            <th class="border border-slate-400 py-1 px-2">Assessment 實證邏輯 (35%)</th>
+            <th class="border border-slate-400 py-1 px-2">Plan 劑量建議與衛教 (35%)</th>
+            <th class="border border-slate-400 py-1 px-2">總分 (100%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="h-7 text-center">
+            <td class="border border-slate-400 font-bold bg-slate-50">得分</td>
+            <td class="border border-slate-400"></td>
+            <td class="border border-slate-400"></td>
+            <td class="border border-slate-400"></td>
+            <td class="border border-slate-400"></td>
+            <td class="border border-slate-400 font-bold"></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="grid grid-cols-12 gap-4 pt-2 text-[11px] text-slate-700">
+        <div class="col-span-8 border-r border-slate-300 pr-3 min-h-[48px]">
+          <strong>指導藥師講評與回饋意見：</strong>
+        </div>
+        <div class="col-span-4 flex flex-col justify-between">
+          <div><strong>指導藥師簽章：</strong></div>
+          <div class="text-right text-[10px] text-slate-400 mt-4">批閱日期：____ 年 ____ 月 ____ 日</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- FOOTER (NO-PRINT)                                                 -->
+  <!-- ================================================================= -->
+  <footer class="bg-white border-t border-slate-200 mt-10 no-print">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+      <div class="flex items-center gap-2">
+        <span class="font-semibold text-slate-700">臨床藥事照護 SOAP 實作與交卷系統 (學員作答端)</span>
+        <span>— Case 1: Mr. Jobs</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <span class="px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 font-semibold border border-blue-200">
+          史一良藥師監製 / 臨床藥學教案系統
+        </span>
+        <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-medium border border-slate-200">
+          Version: <strong>v1.3.0</strong>
+        </span>
+        <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-medium border border-slate-200">
+          製作日期: <strong>2026-11-17</strong>
+        </span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================================================================= -->
+  <!-- JAVASCRIPT LOGIC                                                  -->
+  <!-- ================================================================= -->
+  <script>
+    const STORAGE_KEY = 'clinical_soap_student_draft_v1_3';
+
+    function initWorksheet() {
+      loadDraft();
+      updateCharCounts();
+      lucide.createIcons();
+    }
+
+    // Blank calculator for students to verify numbers themselves
+    function runStudentCalc() {
+      const age = parseFloat(document.getElementById('tool-age').value);
+      const wt = parseFloat(document.getElementById('tool-wt').value);
+      const ht = parseFloat(document.getElementById('tool-ht').value);
+      const scr = parseFloat(document.getElementById('tool-scr').value);
+
+      if (ht > 100) {
+        const ibw = 50 + 2.3 * ((ht / 2.54) - 60);
+        document.getElementById('tool-res-ibw').textContent = ibw.toFixed(1);
+        if (age > 0 && scr > 0) {
+          const cgIbw = ((140 - age) * ibw) / (72 * scr);
+          document.getElementById('tool-res-cg-ibw').textContent = cgIbw.toFixed(1);
+        }
+      } else {
+        document.getElementById('tool-res-ibw').textContent = '--';
+        document.getElementById('tool-res-cg-ibw').textContent = '--';
+      }
+
+      if (age > 0 && wt > 0 && scr > 0) {
+        const cgTbw = ((140 - age) * wt) / (72 * scr);
+        document.getElementById('tool-res-tbw').textContent = cgTbw.toFixed(1);
+      } else {
+        document.getElementById('tool-res-tbw').textContent = '--';
+      }
+    }
+
+    // Save progress to localStorage
+    function saveDraft() {
+      const draft = {
+        name: document.getElementById('stu-name').value,
+        id: document.getElementById('stu-id').value,
+        level: document.getElementById('stu-level').value,
+        preceptor: document.getElementById('stu-preceptor').value,
+        date: document.getElementById('stu-date').value,
+        crcl: document.getElementById('stu-crcl').value,
+        soapS: document.getElementById('soap-s').value,
+        soapO: document.getElementById('soap-o').value,
+        soapA: document.getElementById('soap-a').value,
+        soapP: document.getElementById('soap-p').value,
+        updatedAt: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      };
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+        document.getElementById('autosave-text').textContent = `已自動儲存 (${draft.updatedAt})`;
+      } catch (e) {
+        console.warn('LocalStorage not available');
+      }
+
+      updateCharCounts();
+    }
+
+    function loadDraft() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+
+        if (draft.name) document.getElementById('stu-name').value = draft.name;
+        if (draft.id) document.getElementById('stu-id').value = draft.id;
+        if (draft.level) document.getElementById('stu-level').value = draft.level;
+        if (draft.preceptor) document.getElementById('stu-preceptor').value = draft.preceptor;
+        if (draft.date) document.getElementById('stu-date').value = draft.date;
+        if (draft.crcl) document.getElementById('stu-crcl').value = draft.crcl;
+        if (draft.soapS) document.getElementById('soap-s').value = draft.soapS;
+        if (draft.soapO) document.getElementById('soap-o').value = draft.soapO;
+        if (draft.soapA) document.getElementById('soap-a').value = draft.soapA;
+        if (draft.soapP) document.getElementById('soap-p').value = draft.soapP;
+      } catch (e) {
+        console.warn('Failed to load draft');
+      }
+    }
+
+    function updateCharCounts() {
+      ['s', 'o', 'a', 'p'].forEach(key => {
+        const val = document.getElementById(`soap-${key}`).value || '';
+        document.getElementById(`count-${key}`).textContent = `${val.length} 字`;
+      });
+    }
+
+    // Populate the Printable A4 Sheet with student's current inputs
+    function syncDataToPrintSheet() {
+      document.getElementById('pdf-stu-name').textContent = document.getElementById('stu-name').value.trim() || '（未填寫姓名）';
+      document.getElementById('pdf-stu-id').textContent = document.getElementById('stu-id').value.trim() || '（未填寫）';
+      document.getElementById('pdf-stu-level').textContent = document.getElementById('stu-level').value;
+      document.getElementById('pdf-stu-preceptor').textContent = document.getElementById('stu-preceptor').value.trim() || '（未填寫）';
+      document.getElementById('pdf-stu-crcl').textContent = document.getElementById('stu-crcl').value.trim() || '（未填寫）';
+      document.getElementById('pdf-stu-date').textContent = document.getElementById('stu-date').value || '2026-11-17';
+
+      document.getElementById('pdf-soap-s').textContent = document.getElementById('soap-s').value.trim() || '（學員未填寫 Subjective 內容）';
+      document.getElementById('pdf-soap-o').textContent = document.getElementById('soap-o').value.trim() || '（學員未填寫 Objective 內容）';
+      document.getElementById('pdf-soap-a').textContent = document.getElementById('soap-a').value.trim() || '（學員未填寫 Assessment 內容）';
+      document.getElementById('pdf-soap-p').textContent = document.getElementById('soap-p').value.trim() || '（學員未填寫 Plan 內容）';
+    }
+
+    // Validate before PDF generation
+    function validateStudentSubmission() {
+      const name = document.getElementById('stu-name').value.trim();
+      const aText = document.getElementById('soap-a').value.trim();
+      const pText = document.getElementById('soap-p').value.trim();
+      const banner = document.getElementById('validation-banner');
+      const msg = document.getElementById('validation-msg');
+
+      if (!name) {
+        msg.textContent = "請先於上方填寫「學員姓名」，再產製 PDF 交卷！";
+        banner.classList.remove('hidden');
+        document.getElementById('stu-name').focus();
+        return false;
+      }
+      if (!aText && !pText) {
+        msg.textContent = "您的 SOAP (Assessment / Plan) 尚未填寫內容，請先撰寫後再產製 PDF 交卷！";
+        banner.classList.remove('hidden');
+        document.getElementById('soap-a').focus();
+        return false;
+      }
+      banner.classList.add('hidden');
+      return true;
+    }
+
+    // Preview Modal
+    function openSubmissionPreview() {
+      syncDataToPrintSheet();
+      const sheetHtml = document.getElementById('print-submission-sheet').innerHTML;
+      const modalBody = document.getElementById('modal-preview-body');
+      modalBody.innerHTML = `<div class="bg-white p-6 sm:p-8 rounded-xl shadow border border-slate-300 max-w-[210mm] mx-auto">${sheetHtml}</div>`;
+      document.getElementById('preview-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeSubmissionPreview() {
+      document.getElementById('preview-modal').classList.add('hidden');
+    }
+
+    // Direct PDF Download via html2pdf.js
+    function handleGeneratePDF() {
+      if (!validateStudentSubmission()) return;
+      syncDataToPrintSheet();
+
+      const stuName = document.getElementById('stu-name').value.trim() || 'Student';
+      const stuId = document.getElementById('stu-id').value.trim() || 'ID';
+      const dateStr = document.getElementById('stu-date').value || '2026-11-17';
+      const filename = `臨床藥事照護SOAP作業_Case1_MrJobs_${stuId}_${stuName}_${dateStr}.pdf`;
+
+      const element = document.getElementById('print-submission-sheet');
+      element.classList.remove('hidden');
+
+      const btn = document.getElementById('btn-export-pdf');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<span>正在產製 PDF 考卷...</span>`;
+      btn.disabled = true;
+
+      const opt = {
+        margin:       [10, 10, 10, 10],
+        filename:     filename,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      if (typeof html2pdf !== 'undefined') {
+        html2pdf().set(opt).from(element).save().then(() => {
+          element.classList.add('hidden');
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          lucide.createIcons();
+        }).catch(() => {
+          element.classList.add('hidden');
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          lucide.createIcons();
+          window.print();
+        });
+      } else {
+        window.print();
+        element.classList.add('hidden');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        lucide.createIcons();
+      }
+    }
+
+    // Browser Native Print to PDF (100% vector text fidelity)
+    function handleBrowserPrintPDF() {
+      if (!validateStudentSubmission()) return;
+      syncDataToPrintSheet();
+      closeSubmissionPreview();
+      window.print();
+    }
+
+    // Reset Modal Functions
+    function openResetModal() {
+      document.getElementById('reset-modal').classList.remove('hidden');
+    }
+
+    function closeResetModal() {
+      document.getElementById('reset-modal').classList.add('hidden');
+    }
+
+    function confirmResetAll() {
+      localStorage.removeItem(STORAGE_KEY);
+      document.getElementById('stu-name').value = '';
+      document.getElementById('stu-id').value = '';
+      document.getElementById('stu-crcl').value = '';
+      document.getElementById('soap-s').value = '';
+      document.getElementById('soap-o').value = '';
+      document.getElementById('soap-a').value = '';
+      document.getElementById('soap-p').value = '';
+      updateCharCounts();
+      closeResetModal();
+    }
+
+    window.onload = initWorksheet;
+  </script>
+</body>
+</html>
